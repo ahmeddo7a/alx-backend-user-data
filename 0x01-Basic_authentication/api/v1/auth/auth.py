@@ -19,8 +19,11 @@ class Auth:
             return True
 
         for excluded_path in excluded_paths:
-            compare_result = compare_strings(path, excluded_path)
-            if compare_result:
+            if path[-1] != '/':
+                path += '/'
+            if excluded_paths[-1] != '/':
+                excluded_paths += '/'
+            if path in excluded_paths:
                 return False
 
         return True
@@ -34,15 +37,6 @@ class Auth:
         """ Method to get user from request.
         """
         return None
-    
-    def compare_strings(str1, str2):
-        """ Add a trailing backslash to str1 if it doesn't have one
-        """
-        if str1[-1] != '/':
-            str1 += '/'
 
-        """ Compare the modified str1 with str2
-        """  
-        return str1 == str2
 
 
