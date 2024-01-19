@@ -1,54 +1,60 @@
 #!/usr/bin/env python3
-"""
-SessionDBAuth module for the API
+""" Session DB Auth
 """
 from datetime import datetime, timedelta
-
-from api.v1.auth.session_exp_auth import SessionExpAuth
+from .session_exp_auth import SessionExpAuth
 from models.user_session import UserSession
+
+format_string = "%Y-%m-%dT%H:%M:%S"
 
 
 class SessionDBAuth(SessionExpAuth):
-    """SessionDBAuth Class
+    """ Session DB Auth class
     """
-
-    def create_session(self, user_id: str = None) -> str:
-        """Create a session ID for a user_id and save it to the database"""
+    def create_session(self, user_id=None):
+        """ creates session id for user
+        """
         session_id = super().create_session(user_id)
         if session_id is None:
             return None
-        user_session = UserSession(user_id=user_id, session_id=session_id)
-        user_session.save()
+        UserSession(user_id=user_id, session_id=session_id).save()
         return session_id
 
     def user_id_for_session_id(self, session_id=None):
-        """Return the User ID by requesting UserSession in the database"""
-        if session_id is None:
+        """ returns user id based on session id
+        """
+        if session_id is None or not isinstance(session_id, str):
             return None
-        UserSession.load_from_file()
         user_session = UserSession.search({'session_id': session_id})
         if len(user_session) == 0:
             return None
+        user_session = user_session[0]
         if self.session_duration <= 0:
-            return user_session[0].user_id
-        created_at = user_session[0].created_at
-        if (created_at +
-                timedelta(seconds=self.session_duration)) < datetime.utcnow():
+            return user_session.user_id
+        if 'created_at' not in user_session.to_json():
             return None
-        return user_session[0].user_id
+        created_at = user_session.to_json().get('created_at')
+        print(">> created_at: {}".format(created_at))
+        if created_at is None:
+            return None
+        expire_at = datetime.strptime(created_at, format_string)\
+            + timedelta(seconds=self.session_duration)
+        if expire_at < datetime.now():
+            return None
+        return user_session.user_id
 
     def destroy_session(self, request=None):
-        """Destroy the UserSession based on the Session ID from the request
-        from the database
+        """ destroys session
         """
         if request is None:
             return False
-        session_cookie = self.session_cookie(request)
-        if not session_cookie:
+        session_id = self.session_cookie(request)
+        if session_id is None:
             return False
-        user_session = UserSession.search({'session_id': session_cookie})
-        if len(user_session) == 0:
+        if not self.user_id_for_session_id(session_id):
             return False
-        del self.user_id_by_session_id[session_cookie]
-        user_session[0].remove()
-        return True
+        user_session = UserSession.search({'session_id': session_id})
+        if len(user_session) != 0:
+            user_session[0].remove()
+            return True
+        return False

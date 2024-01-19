@@ -6,6 +6,15 @@ from flask import abort, jsonify, request
 from models.user import User
 
 
+def get_user_or_404(user_id):
+    """ Get a User object by its ID
+    """
+    user = User.get(user_id)
+    if user is None:
+        abort(404)
+    return user
+
+
 @app_views.route('/users', methods=['GET'], strict_slashes=False)
 def view_all_users() -> str:
     """ GET /api/v1/users
@@ -27,16 +36,12 @@ def view_one_user(user_id: str = None) -> str:
     """
     if user_id is None:
         abort(404)
-    if user_id == 'me':
-        if request.current_user is None:
-            abort(404)
-        else:
-            return jsonify(request.current_user.to_json()), 200
 
-    user = User.get(user_id)
-    if user is None:
-        abort(404)
-    return jsonify(user.to_json())
+    if user_id == 'me' and request.current_user:
+        user = get_user_or_404(request.current_user.id)
+        return user.to_json()
+    user = get_user_or_404(user_id)
+    return user
 
 
 @app_views.route('/users/<user_id>', methods=['DELETE'], strict_slashes=False)
